@@ -51,7 +51,7 @@ class GeoIP extends Object {
 			$ip = $this->getClientIp();
 		}
 		$db = getDatabase('GeoIP');
-		$quotedLong = $db->quote(ip2long($ip), \PDO::PARAM_INT);
+		$quotedLong = $db->quote($this->ip2long($ip), \PDO::PARAM_INT);
 		$code = $db->fetchValue('SELECT country_code FROM ip2country WHERE begin <= '.$quotedLong.' AND end >= '.$quotedLong, true);
 		if ($code) {
 			return array('code' => $code, 'country' => self::$countries[$code]);
@@ -79,10 +79,10 @@ class GeoIP extends Object {
 			$server = $_SERVER['SERVER_ADDR'];
 		}
 		$parts = explode('.', $server); // Splits het server IP op in 4 stukken
-		$start = ip2long($parts[0].'.'.$parts[1].'.'.$parts[2].'.0'); // Ga uit van een netmask van 255.255.255.0
-		$end = ip2long($parts[0].'.'.$parts[1].'.'.$parts[2].'.255');
-		$ipNumber = ip2long($ip);
-		if ($ipNumber >= $start && $ipNumber <= $end) {
+		$start = $this->ip2long($parts[0].'.'.$parts[1].'.'.$parts[2].'.0'); // Ga uit van een netmask van 255.255.255.0
+		$end = $this->ip2long($parts[0].'.'.$parts[1].'.'.$parts[2].'.255');
+		$ipNumber = $this->ip2long($ip);
+		if (bccomp($ipNumber, $start) >= 0 && bccomp($ipNumber, $end) <= 0) { // $ipNumber >= $start && $ipNumber <= $end
 			return true;
 		}
 		return false;
@@ -120,7 +120,7 @@ class GeoIP extends Object {
 				}
 			}
 		}
-		$quotedLong = $db->quote(ip2long($ip), \PDO::PARAM_INT);
+		$quotedLong = $db->quote($this->ip2long($ip), \PDO::PARAM_INT);
 		return ($db->fetchValue('SELECT begin FROM '.$table.' WHERE begin <= '.$quotedLong.' AND end >= '.$quotedLong, true) != false);
 		 */
 	}
@@ -166,6 +166,18 @@ class GeoIP extends Object {
 			return '127.0.0.1';
 		}
 		return getClientIp();
+	}
+
+	/**
+	 * Converts a string IPv4 Internet Protocol dotted address into a long.
+	 * Also returns unsign long on on 32bit systems.
+	 *
+	 * @param string $ip '255.255.255.255'
+	 * @return string unsigned long
+	 */
+	private function ip2long($ip) {
+		$signed = ip2long($ip);
+		return sprintf('%u', $signed);
 	}
 
 }
