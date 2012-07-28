@@ -16,14 +16,15 @@ class GeoIPLookupUtil extends Util {
 	}
 
 	function generateContent() {
-		$module = array(
-			'path' => dirname($this->paths['utils'])
-		);
 		if (isset($_GET['ip'])) {
-			Framework::$autoLoader->importModule($module);
+			Framework::$autoLoader->importFolder(dirname($this->paths['utils']).'/classes');
 			$geoip = new GeoIP();
 			$result = $geoip->getCountry(value($_GET['ip']));
-			return Alert::success('<h3>Maxmind GeoIP</h3>IP: <b>'.$_GET['ip'].'</b> is located in <b>'.$result['country'].'</b> ('.$result['code'].')');
+			if ($result) {
+				return Alert::success('<h3>Maxmind GeoIP</h3>IP: <b>'.$_GET['ip'].'</b> is located in <b>'.$result['country'].'</b> ('.$result['code'].')');
+			} else {
+				return Alert::error('<h3>Maxmind GeoIP</h3>IP: <b>'.$_GET['ip'].'</b> is not found in the country database.');
+			}
 		} else {
 			return new Form(array(
 				'method' => 'get',
