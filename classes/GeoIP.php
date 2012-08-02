@@ -17,23 +17,28 @@ class GeoIP extends Object {
 	private static $countries;
 
 	/**
+	 * The GeoIP Sqlite database
+	 * @var Database
+	 */
+	private static $database;
+
+	/**
 	 * Constructor
 	 */
 	function __construct() {
-		if (empty(Database::$instances['GeoIP'])) {
+		if (self::$database === null) {
 			$dbFile = TMP_DIR.'GeoIP/countries.sqlite';
 			if (file_exists($dbFile) == false) {
 				mkdirs(TMP_DIR.'GeoIP');
 				copy(dirname(__FILE__).'/../data/countries.sqlite', $dbFile);
 			}
-			Database::$instances['GeoIP'] = new Database('sqlite:'.$dbFile);
+			self::$database = new Database('sqlite:'.$dbFile, null, null, array('logIdentifier' => 'GeoIP'));
 			if (!$this->tableExists('country') || !$this->tableExists('ip2country')) {
 				throw new \Exception('GeoIP database is corrupt, run `php sledgehammer/geoip/utils/upgrade_db.php`');
 			}
 		}
 		if (self::$countries === null) {
-			$db = getDatabase('GeoIP');
-			$countries = $db->query('SELECT code, name FROM country ORDER BY name ASC');
+			$countries = self::$database->query('SELECT code, name FROM country ORDER BY name ASC');
 			foreach ($countries as $row) {
 				self::$countries[$row['code']] = $row['name'];
 			}
@@ -50,9 +55,8 @@ class GeoIP extends Object {
 		if ($ip === null) {
 			$ip = $this->getClientIp();
 		}
-		$db = getDatabase('GeoIP');
-		$quotedLong = $db->quote($this->ip2long($ip), \PDO::PARAM_INT);
-		$code = $db->fetchValue('SELECT country_code FROM ip2country WHERE begin <= '.$quotedLong.' AND end >= '.$quotedLong, true);
+		$quotedLong = self::$database->quote($this->ip2long($ip), \PDO::PARAM_INT);
+		$code = self::$database->fetchValue('SELECT country_code FROM ip2country WHERE begin <= '.$quotedLong.' AND end >= '.$quotedLong, true);
 		if ($code) {
 			return array('code' => $code, 'country' => self::$countries[$code]);
 		}
@@ -106,7 +110,6 @@ class GeoIP extends Object {
 		if ($ip === null) {
 			$ip = $this->getClientIp();
 		}
-		$db = getDatabase('GeoIP');
 		$table = 'ip_in_'.strtolower($code);
 		if (!$this->tableExists($table)) {
 			$sqlStatements = array(
@@ -120,8 +123,8 @@ class GeoIP extends Object {
 				}
 			}
 		}
-		$quotedLong = $db->quote($this->ip2long($ip), \PDO::PARAM_INT);
-		return ($db->fetchValue('SELECT begin FROM '.$table.' WHERE begin <= '.$quotedLong.' AND end >= '.$quotedLong, true) != false);
+		$quotedLong = self::$database->quote($this->ip2long($ip), \PDO::PARAM_INT);
+		return (self::$database->fetchValue('SELECT begin FROM '.$table.' WHERE begin <= '.$quotedLong.' AND end >= '.$quotedLong, true) != false);
 		 */
 	}
 
@@ -134,8 +137,7 @@ class GeoIP extends Object {
 	private function tableExists($table) {
 		static $tables = array();
 		if (isset($tables[$table]) === false) {
-			$db = getDatabase('GeoIP');
-			$tables[$table] = (bool) $db->fetchValue('SELECT count(*) FROM sqlite_master WHERE type="table" AND name='.$db->quote($table));
+			$tables[$table] = (bool) self::$database->fetchValue('SELECT count(*) FROM sqlite_master WHERE type="table" AND name='.self::$database->quote($table));
 		}
 		return $tables[$table];
 	}
